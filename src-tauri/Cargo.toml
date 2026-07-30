@@ -1,0 +1,42 @@
+[package]
+name = "kimicodebar"
+version = "0.8.0"
+description = "Kimi Code usage monitor in the Windows system tray"
+edition = "2021"
+rust-version = "1.77.2"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon", "image-png"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+reqwest = { version = "0.13", default-features = false, features = ["json", "native-tls"] }
+chrono = { version = "0.4", default-features = false, features = ["std", "clock", "serde"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "time"] }
+urlencoding = "2"
+uuid = { version = "1", features = ["v4"] }
+thiserror = "2"
+base64 = "0.22"
+keyring = { version = "3", features = ["windows-native"] }
+tauri-plugin-notification = "2"
+tauri-plugin-autostart = "2"
+tauri-plugin-opener = "2"
+tauri-plugin-single-instance = "2"
+tauri-plugin-global-shortcut = "2"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }
+tracing-appender = "0.2"
+
+# credentials.json 的 DPAPI 加密（CryptProtectData / CryptUnprotectData，CurrentUser 作用域），
+# CLI 模式的 AttachConsole / FreeConsole（Win32_System_Console，见 cli.rs），
+# 以及系统区域探测 GetUserDefaultLocaleName（Win32_Globalization，见 i18n.rs）。
+# 复用依赖树中已有的 windows-sys，仅启用所需 feature。
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = [
+    "Win32_Foundation",
+    "Win32_Globalization",
+    "Win32_Security_Cryptography",
+    "Win32_System_Console",
+] }

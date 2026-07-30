@@ -1,3 +1,19 @@
+# Dependencies
+node_modules/
+
+# Vite build output
+dist/
+
+# Tauri / Rust build output
+src-tauri/target/
+target/
+
+# Logs
+*.log
+
+# 本地交接笔记（不进仓库）
+HANDOFF.md
+
 # macOS
 .DS_Store
 
