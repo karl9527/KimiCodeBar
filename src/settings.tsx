@@ -18,6 +18,7 @@ import {
   saveSettings,
 } from "./ipc";
 import { ApiKeySection } from "./components/ApiKeySection";
+import { ArchiveSection } from "./components/ArchiveSection";
 import { BackgroundRow } from "./components/BackgroundRow";
 import { DeviceLoginSection } from "./components/DeviceLoginSection";
 import { HotkeyInput } from "./components/HotkeyInput";
@@ -84,6 +85,7 @@ function SettingsApp() {
   const [loginOpen, setLoginOpen] = useState(false);
   const [generalOpen, setGeneralOpen] = useState(false);
   const [diagOpen, setDiagOpen] = useState(false);
+  const [archiveOpen, setArchiveOpen] = useState(false);
   // 预设背景 id（纯 CSS 渐变 class）；null = 未选预设
   const [bgPreset, setBgPreset] = useState<string | null>(null);
   // 自定义背景图（kimibg:// 协议 URL）；null = 无图
@@ -224,6 +226,9 @@ function SettingsApp() {
       // 背景（预设/图片）由专属命令直写（BackgroundRow 成功后已 reloadSettings），此处原样透传
       background_image: settings.background_image ?? null,
       background_preset: settings.background_preset ?? null,
+      // 归档设置由归档卡的专属命令直写，此处原样透传（否则保存通用设置会抹掉）
+      auto_archive_enabled: settings.auto_archive_enabled,
+      auto_archive_threshold: settings.auto_archive_threshold,
     };
     setSavingGeneral(true);
     setGeneralError(null);
@@ -500,7 +505,21 @@ function SettingsApp() {
         onChanged={reloadStatus}
       />
 
-      {/* E. 诊断与日志（折叠卡片） */}
+      {/* E. 会话归档（折叠卡片，位于诊断前） */}
+      <section className="scard">
+        <button
+          type="button"
+          className="collapse-head"
+          onClick={() => setArchiveOpen((v) => !v)}
+          aria-expanded={archiveOpen}
+        >
+          <span className="scard-title">{t("archive.title")}</span>
+          <span className={`chevron${archiveOpen ? " open" : ""}`}>▸</span>
+        </button>
+        {archiveOpen && <ArchiveSection />}
+      </section>
+
+      {/* F. 诊断与日志（折叠卡片） */}
       <section className="scard">
         <button
           type="button"

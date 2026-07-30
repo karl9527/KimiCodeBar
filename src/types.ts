@@ -83,6 +83,10 @@ export interface AppSettings {
   background_image?: string | null;
   /** 预设背景 id（night / aurora / violet / ember），null = 未选；生效时优先于 background_image */
   background_preset?: string | null;
+  /** 会话自动归档开关（默认 false） */
+  auto_archive_enabled: boolean;
+  /** 自动归档期限："oneDay" / "oneWeek" / "oneMonth"（默认 "oneWeek"） */
+  auto_archive_threshold: string;
 }
 
 /** 凭证配置状态：get_credential_status 的返回 */
@@ -189,5 +193,35 @@ export interface UpdateInfo {
   /** 有新版本时的 Release 页面地址（点击去下载） */
   release_url: string | null;
   /** 检查失败原因（网络等）；成功为 null */
+  error: string | null;
+}
+
+// ============ 会话归档 ============
+
+/** 单个会话（后端 archive.rs 移植自 macOS 版语义） */
+export interface ArchiveSession {
+  /** 会话目录名（ses_<uuid>） */
+  id: string;
+  /** 工作区目录名（wd_<name>_<hash>） */
+  workspace_hash: string;
+  /** 工作区显示名（workDir / custom.cwd 末段，回退 workspace_hash） */
+  folder_name: string;
+  /** 会话标题 */
+  title: string;
+  /** 最后更新时间（epoch 毫秒） */
+  updated_at_ms: number;
+  is_archived: boolean;
+  /** 会话目录完整路径（归档/恢复操作的标识） */
+  path: string;
+}
+
+/** get_archive_overview 的返回 */
+export interface ArchiveOverview {
+  sessions: ArchiveSession[];
+  auto_archive_enabled: boolean;
+  auto_archive_threshold: string;
+  /** 上次自动归档时间（epoch 毫秒），未运行为 null */
+  last_auto_archive_at: number | null;
+  last_auto_archive_count: number;
   error: string | null;
 }

@@ -915,3 +915,65 @@ body,
   opacity: 0.5;
   cursor: default;
 }
+
+/* 会话归档 */
+.archive-section {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.archive-toolbar {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin: 8px 0 2px;
+}
+
+.archive-last-auto {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.archive-list {
+  max-height: 280px;
+  overflow-y: auto;
+  margin-top: 6px;
+}
+
+.archive-ws {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: var(--muted);
+  margin: 8px 0 4px;
+}
+
+.archive-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card-bg);
+  margin-bottom: 6px;
+}
+
+.archive-row-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.archive-row-title {
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.archive-row-meta {
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 2px;
+}

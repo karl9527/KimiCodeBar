@@ -53,6 +53,12 @@ pub struct Settings {
     /// 生效规则：preset 优先于 image；两者皆 None 为无背景（background.rs 注释有完整互斥说明）
     #[serde(default)]
     pub background_preset: Option<String>,
+    /// 会话自动归档开关，默认关
+    #[serde(default)]
+    pub auto_archive_enabled: bool,
+    /// 自动归档期限："oneDay" / "oneWeek" / "oneMonth"，默认 "oneWeek"
+    #[serde(default = "default_auto_archive_threshold")]
+    pub auto_archive_threshold: String,
 }
 
 const fn default_refresh_interval_min() -> u32 {
@@ -65,6 +71,10 @@ const fn default_low_warn_enabled() -> bool {
 
 const fn default_warn_threshold_pct() -> f64 {
     DEFAULT_WARN_THRESHOLD_PCT
+}
+
+fn default_auto_archive_threshold() -> String {
+    "oneWeek".to_string()
 }
 
 impl Default for Settings {
@@ -80,6 +90,8 @@ impl Default for Settings {
             theme: None,
             background_image: None,
             background_preset: None,
+            auto_archive_enabled: false,
+            auto_archive_threshold: default_auto_archive_threshold(),
         }
     }
 }
@@ -228,6 +240,8 @@ mod tests {
             theme: Some("light".to_string()),
             background_image: Some("background.png".to_string()),
             background_preset: None,
+            auto_archive_enabled: false,
+            auto_archive_threshold: "oneWeek".to_string(),
         };
         save_settings(&settings).unwrap();
         assert!(dir.join("settings.json").exists());

@@ -8,6 +8,8 @@ import { listen } from "@tauri-apps/api/event";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import type {
   AppSettings,
+  ArchiveOverview,
+  ArchiveSession,
   CredentialStatus,
   DailyUsage,
   DeviceLoginState,
@@ -206,12 +208,35 @@ const mockDb = {
     theme: "system",
     background_image: null,
     background_preset: null,
+    auto_archive_enabled: false,
+    auto_archive_threshold: "oneWeek",
   } as AppSettings,
   // 预置一个假 Key，方便浏览器开发时看到"已配置"徽标
   apiKey: "sk-kimi-mock9f8e7d6c5b4a" as string | null,
   oauthConfigured: false,
   // 网页 token（月度总量用）：初始未配置，走 setWebToken/clearWebToken 变更
   webToken: null as string | null,
+  // 归档 mock：两个会话（一个活跃一个已归档）
+  archiveSessions: [
+    {
+      id: "ses_mock-1",
+      workspace_hash: "wd_proj_ab12",
+      folder_name: "proj",
+      title: "mock 会话：重构用量面板",
+      updated_at_ms: Date.now() - 2 * 3600_000,
+      is_archived: false,
+      path: "/mock/sessions/wd_proj_ab12/ses_mock-1",
+    },
+    {
+      id: "ses_mock-2",
+      workspace_hash: "wd_proj_ab12",
+      folder_name: "proj",
+      title: "mock 会话：修复登录跳转",
+      updated_at_ms: Date.now() - 10 * 24 * 3600_000,
+      is_archived: true,
+      path: "/mock/sessions/wd_proj_ab12/ses_mock-2",
+    },
+  ] as ArchiveSession[],
 };
 
 /** 浏览器 mock 的 device-login-updated 事件订阅者集合 */
@@ -545,4 +570,47 @@ export async function exportDiagnostics(): Promise<string> {
     return "C:\\Users\\demo\\AppData\\Roaming\\KimiCodeBar\\diagnostics-20260726-120000.txt";
   }
   return invoke<string>("export_diagnostics");
+}
+
+// ============ 会话归档 ============
+
+/** 归档总览：会话列表 + 自动归档设置与最近运行信息 */
+export async function getArchiveOverview(): Promise<ArchiveOverview> {
+  if (!isTauri) {
+    return {
+      sessions: [...mockDb.archiveSessions].sort((a, b) => b.updated_at_ms - a.updated_at_ms),
+      auto_archive_enabled: mockDb.settings.auto_archive_enabled,
+      auto_archive_threshold: mockDb.settings.auto_archive_threshold,
+      last_auto_archive_at: null,
+      last_auto_archive_count: 0,
+      error: null,
+    };
+  }
+  return invoke<ArchiveOverview>("get_archive_overview");
+}
+
+/** 设置自动归档开关与期限：持久化并立即按新规则生效 */
+export async function setAutoArchive(enabled: boolean, threshold: string): Promise<void> {
+  if (!isTauri) {
+    mockDb.settings.auto_archive_enabled = enabled;
+    mockDb.settings.auto_archive_threshold = threshold;
+    return;
+  }
+  return invoke("set_auto_archive", { enabled, threshold });
+}
+
+/** 立即按当前期限归档，返回归档个数 */
+export async function archiveEligibleNow(): Promise<number> {
+  if (!isTauri) return 0;
+  return invoke<number>("archive_eligible_now");
+}
+
+/** 归档/恢复单个会话，返回是否成功 */
+export async function setSessionArchived(path: string, archived: boolean): Promise<boolean> {
+  if (!isTauri) {
+    const s = mockDb.archiveSessions.find((s) => s.path === path);
+    if (s) s.is_archived = archived;
+    return true;
+  }
+  return invoke<boolean>("set_session_archived", { path, archived });
 }

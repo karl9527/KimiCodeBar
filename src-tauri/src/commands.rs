@@ -5,6 +5,7 @@
 
 use std::sync::Mutex;
 
+use kimicodebar::archive;
 use kimicodebar::creds;
 use kimicodebar::history;
 use kimicodebar::kimi::client::KimiClient;
@@ -50,6 +51,16 @@ pub struct AppSettings {
     /// 预设背景 id（night / aurora / violet / ember），None 表示未选；生效时优先于 image
     #[serde(default)]
     pub background_preset: Option<String>,
+    /// 会话自动归档开关
+    #[serde(default)]
+    pub auto_archive_enabled: bool,
+    /// 自动归档期限："oneDay" / "oneWeek" / "oneMonth"
+    #[serde(default = "default_auto_archive_threshold_dto")]
+    pub auto_archive_threshold: String,
+}
+
+fn default_auto_archive_threshold_dto() -> String {
+    "oneWeek".to_string()
 }
 
 impl From<storage::Settings> for AppSettings {
@@ -65,6 +76,8 @@ impl From<storage::Settings> for AppSettings {
             theme: s.theme,
             background_image: s.background_image,
             background_preset: s.background_preset,
+            auto_archive_enabled: s.auto_archive_enabled,
+            auto_archive_threshold: s.auto_archive_threshold,
         }
     }
 }
@@ -82,6 +95,8 @@ impl From<AppSettings> for storage::Settings {
             theme: s.theme,
             background_image: s.background_image,
             background_preset: s.background_preset,
+            auto_archive_enabled: s.auto_archive_enabled,
+            auto_archive_threshold: s.auto_archive_threshold,
         }
     }
 }
@@ -527,6 +542,99 @@ pub fn open_settings(app: AppHandle) {
         let _ = window.show();
         let _ = window.set_focus();
     }
+}
+
+// ---------------------------------------------------------------------------
+// 会话归档
+// ---------------------------------------------------------------------------
+
+/// 归档总览（与 src/types.ts 的 ArchiveOverview 一一对应）
+#[derive(Debug, Clone, Serialize)]
+pub struct ArchiveOverview {
+    pub sessions: Vec<archive::ArchiveSession>,
+    pub auto_archive_enabled: bool,
+    pub auto_archive_threshold: String,
+    /// 上次自动归档时间（epoch 毫秒），未运行为 None
+    pub last_auto_archive_at: Option<i64>,
+    pub last_auto_archive_count: usize,
+    pub error: Option<String>,
+}
+
+/// 自动归档最近一次运行信息（进程内不持久化，与 macOS 版一致）
+static LAST_AUTO_ARCHIVE: Mutex<(Option<i64>, usize)> = Mutex::new((None, 0));
+
+/// 记录一次自动归档运行（main.rs 调度任务回调）
+pub fn record_auto_archive(count: usize) {
+    *LAST_AUTO_ARCHIVE.lock().unwrap() = (Some(chrono::Utc::now().timestamp_millis()), count);
+}
+
+#[tauri::command]
+pub async fn get_archive_overview() -> ArchiveOverview {
+    let settings = storage::load_settings().unwrap_or_default();
+    let result = tokio::task::spawn_blocking(archive::scan_sessions)
+        .await
+        .unwrap_or_default();
+    let (last_at, last_count) = *LAST_AUTO_ARCHIVE.lock().unwrap();
+    ArchiveOverview {
+        sessions: result.sessions,
+        auto_archive_enabled: settings.auto_archive_enabled,
+        auto_archive_threshold: settings.auto_archive_threshold,
+        last_auto_archive_at: last_at,
+        last_auto_archive_count: last_count,
+        error: result.error,
+    }
+}
+
+/// 设置自动归档开关与期限：持久化并通知后台调度立即按新规则生效。
+/// 信号经 app.state 的 watch::Sender 传递（main.rs 注册）
+#[tauri::command]
+pub fn set_auto_archive(app: AppHandle, enabled: bool, threshold: String) -> Result<(), String> {
+    tracing::info!("设置自动归档: enabled={enabled}, threshold={threshold}");
+    if archive::ArchiveThreshold::parse(&threshold).is_none() {
+        return Err(format!("非法归档期限: {threshold}"));
+    }
+    let mut settings = storage::load_settings().map_err(|e| e.to_string())?;
+    settings.auto_archive_enabled = enabled;
+    settings.auto_archive_threshold = threshold;
+    storage::save_settings(&settings).map_err(|e| e.to_string())?;
+    if let Some(tx) = app.try_state::<tokio::sync::watch::Sender<()>>() {
+        let _ = tx.send(());
+    } else {
+        tracing::warn!("自动归档重排信号发送失败：watch Sender 未注册");
+    }
+    Ok(())
+}
+
+/// 立即按当前期限归档（设置页"立即归档"），返回归档个数
+#[tauri::command]
+pub async fn archive_eligible_now() -> Result<usize, String> {
+    let settings = storage::load_settings().map_err(|e| e.to_string())?;
+    let threshold = archive::ArchiveThreshold::parse(&settings.auto_archive_threshold)
+        .ok_or_else(|| format!("非法归档期限: {}", settings.auto_archive_threshold))?;
+    tokio::task::spawn_blocking(move || {
+        archive::archive_older_than(threshold, chrono::Utc::now().timestamp_millis())
+    })
+    .await
+    .map_err(|e| e.to_string())
+}
+
+/// 归档/恢复单个会话（路径必须位于 sessions 根目录内，防任意文件改写）
+#[tauri::command]
+pub async fn set_session_archived(path: String, archived: bool) -> Result<bool, String> {
+    tokio::task::spawn_blocking(move || {
+        let dir = std::path::PathBuf::from(&path);
+        let Some(root) = kimicodebar::local_usage::sessions_dir() else {
+            return Err("取不到会话根目录".to_string());
+        };
+        if !dir.starts_with(&root) {
+            return Err("非法会话路径".to_string());
+        }
+        let ok = archive::set_archived(&dir, archived);
+        tracing::info!("会话归档状态变更: path={dir:?}, archived={archived}, ok={ok}");
+        Ok(ok)
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]

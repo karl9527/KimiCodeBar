@@ -387,7 +387,7 @@ fn save_state(path: &Path, state: &ScanState) -> Result<(), String> {
 
 /// 会话根目录：~/.kimi-code/sessions（Kimi Code CLI 的会话落盘位置，各平台一致）；
 /// 取不到用户目录为 None（scan 按空目录处理）
-fn sessions_dir() -> Option<PathBuf> {
+pub fn sessions_dir() -> Option<PathBuf> {
     home_dir().map(|home| home.join(".kimi-code").join("sessions"))
 }
 

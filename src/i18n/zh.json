@@ -167,5 +167,30 @@
     "clear": "清除",
     "saving": "校验中…",
     "save": "校验并保存"
+  },
+  "archive": {
+    "title": "会话归档",
+    "auto": "自动归档",
+    "thresholdLabel": "归档期限",
+    "oneDay": "一天以后",
+    "oneWeek": "一周以后",
+    "oneMonth": "一个月以后",
+    "archiveNow": "立即归档",
+    "archivedResult": "已归档 {{count}} 个会话",
+    "lastAuto": "上次自动归档：{{time}}，共 {{count}} 个会话",
+    "filterAll": "全部",
+    "filterActive": "未归档",
+    "filterArchived": "已归档",
+    "empty": "没有符合条件的会话",
+    "archive": "归档",
+    "unarchive": "取消归档",
+    "updatedAt": "更新于 {{time}}",
+    "archivedAt": "归档于 {{time}}",
+    "justNow": "刚刚",
+    "minutesAgo": "{{n}} 分钟前",
+    "hoursAgo": "{{n}} 小时前",
+    "daysAgo": "{{n}} 天前",
+    "loading": "加载中…",
+    "opFailed": "操作失败，详情请查看日志"
   }
 }

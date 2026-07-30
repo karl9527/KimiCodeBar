@@ -93,6 +93,10 @@ fn main() {
             commands::open_log_dir,
             commands::export_diagnostics,
             commands::export_usage_report,
+            commands::get_archive_overview,
+            commands::set_auto_archive,
+            commands::archive_eligible_now,
+            commands::set_session_archived,
         ])
         .setup(|app| {
             // 日志必须最先初始化：之后所有埋点才有着落；失败退回 stderr，不 panic
@@ -123,6 +127,38 @@ fn main() {
 
             // 后台轮询：立即刷一次，之后按设置间隔循环
             polling::start(app.handle().clone());
+
+            // 会话自动归档调度：开启时立即执行一次，之后每小时执行；
+            // set_auto_archive 通过 watch 信号触发按新规则立即重排
+            {
+                let (tx, mut rx) = tokio::sync::watch::channel(());
+                app.manage(tx);
+                tauri::async_runtime::spawn(async move {
+                    loop {
+                        let settings = kimicodebar::storage::load_settings().unwrap_or_default();
+                        if settings.auto_archive_enabled {
+                            let threshold = kimicodebar::archive::ArchiveThreshold::parse(
+                                &settings.auto_archive_threshold,
+                            )
+                            .unwrap_or(kimicodebar::archive::ArchiveThreshold::OneWeek);
+                            let count = tokio::task::spawn_blocking(move || {
+                                kimicodebar::archive::archive_older_than(
+                                    threshold,
+                                    chrono::Utc::now().timestamp_millis(),
+                                )
+                            })
+                            .await
+                            .unwrap_or(0);
+                            commands::record_auto_archive(count);
+                            tracing::info!("自动归档完成：{count} 个会话");
+                        }
+                        tokio::select! {
+                            _ = tokio::time::sleep(std::time::Duration::from_secs(3600)) => {},
+                            _ = rx.changed() => {},
+                        }
+                    }
+                });
+            }
 
             // 主面板失焦（点击到面板外）时自动隐藏
             if let Some(main_window) = app.get_webview_window("main") {

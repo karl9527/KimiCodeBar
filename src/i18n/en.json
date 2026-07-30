@@ -170,5 +170,30 @@
     "clear": "Clear",
     "saving": "Verifying…",
     "save": "Verify & save"
+  },
+  "archive": {
+    "title": "Session Archive",
+    "auto": "Auto-archive",
+    "thresholdLabel": "Archive after",
+    "oneDay": "After 1 day",
+    "oneWeek": "After 1 week",
+    "oneMonth": "After 1 month",
+    "archiveNow": "Archive now",
+    "archivedResult": "Archived {{count}} session(s)",
+    "lastAuto": "Last auto-archive: {{time}}, {{count}} session(s)",
+    "filterAll": "All",
+    "filterActive": "Active",
+    "filterArchived": "Archived",
+    "empty": "No matching sessions",
+    "archive": "Archive",
+    "unarchive": "Unarchive",
+    "updatedAt": "Updated {{time}}",
+    "archivedAt": "Archived {{time}}",
+    "justNow": "just now",
+    "minutesAgo": "{{n}} min ago",
+    "hoursAgo": "{{n}} h ago",
+    "daysAgo": "{{n}} d ago",
+    "loading": "Loading…",
+    "opFailed": "Operation failed; see logs for details"
   }
 }
