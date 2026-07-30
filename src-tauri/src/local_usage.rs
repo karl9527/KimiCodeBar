@@ -1,7 +1,7 @@
 //! 本地 Token 消耗统计：增量扫描 Kimi Code 会话的 wire.jsonl 用量事件，
 //! 聚合为今日/昨日/最近 7 天/分模型累计（语义移植自 macOS 版 KimiLocalUsage.swift）。
 //!
-//! 数据源：`{userprofile}/.kimi-code/sessions/**/wire.jsonl`（递归遍历），逐行 JSON，
+//! 数据源：`~/.kimi-code/sessions/**/wire.jsonl`（递归遍历），逐行 JSON，
 //! 只认 `{"type":"usage.record",...}` 事件，实测样例：
 //! `{"type":"usage.record","model":"kimi-code/k3","usage":{"inputOther":11592,"output":504,"inputCacheRead":11264,"inputCacheCreation":0},"usageScope":"turn","time":1784973672311}`
 //! （time 为 epoch 毫秒；tokens = inputOther + output + inputCacheRead + inputCacheCreation；
@@ -385,12 +385,22 @@ fn save_state(path: &Path, state: &ScanState) -> Result<(), String> {
     std::fs::rename(&tmp_path, path).map_err(|e| format!("重命名临时文件失败: {e}"))
 }
 
-/// 会话根目录：{userprofile}/.kimi-code/sessions（Kimi Code CLI 的会话落盘位置）；
+/// 会话根目录：~/.kimi-code/sessions（Kimi Code CLI 的会话落盘位置，各平台一致）；
 /// 取不到用户目录为 None（scan 按空目录处理）
 fn sessions_dir() -> Option<PathBuf> {
-    std::env::var_os("USERPROFILE")
-        .or_else(|| std::env::var_os("HOME"))
-        .map(|home| PathBuf::from(home).join(".kimi-code").join("sessions"))
+    home_dir().map(|home| home.join(".kimi-code").join("sessions"))
+}
+
+/// 用户主目录：Windows 为 %USERPROFILE%，其他平台为 $HOME
+fn home_dir() -> Option<PathBuf> {
+    #[cfg(windows)]
+    {
+        std::env::var_os("USERPROFILE").map(PathBuf::from)
+    }
+    #[cfg(not(windows))]
+    {
+        std::env::var_os("HOME").map(PathBuf::from)
+    }
 }
 
 /// 扫描状态路径：{config_dir}/scan-state.json（config_dir 规则与 storage.rs 一致）
@@ -455,9 +465,35 @@ fn csv_num(v: Option<f64>) -> String {
 mod tests {
     use super::*;
 
-    // 环境变量是进程级全局状态，凡改动 KIMICODEBAR_CONFIG_DIR / USERPROFILE 的测试
+    // 环境变量是进程级全局状态，凡改动 KIMICODEBAR_CONFIG_DIR / 主目录变量的测试
     // 都须持锁串行；锁为全库共享（lib.rs::TEST_ENV_LOCK）
     use crate::TEST_ENV_LOCK as ENV_LOCK;
+
+    /// 平台主目录变量名（Windows: USERPROFILE，其他: HOME）
+    fn home_key() -> &'static str {
+        #[cfg(windows)]
+        {
+            "USERPROFILE"
+        }
+        #[cfg(not(windows))]
+        {
+            "HOME"
+        }
+    }
+
+    /// 设置主目录变量，返回原值供 restore_home 恢复
+    fn set_home(dir: &Path) -> Option<std::ffi::OsString> {
+        let original = std::env::var_os(home_key());
+        std::env::set_var(home_key(), dir);
+        original
+    }
+
+    fn restore_home(original: Option<std::ffi::OsString>) {
+        match original {
+            Some(v) => std::env::set_var(home_key(), v),
+            None => std::env::remove_var(home_key()),
+        }
+    }
 
     /// UTC+8 固定偏移：日期分桶/CSV 测试的确定时区（与开发机一致）
     fn tz8() -> chrono::FixedOffset {
@@ -788,11 +824,44 @@ mod tests {
     }
 
     #[test]
+    fn scan_tolerates_unwritable_state_file() {
+        // 状态文件写不进（路径在无权限位置）时仍返回完整统计，不 panic 不报错
+        let dir = temp_dir("local-usage-state-ro");
+        let sessions = dir.join("sessions");
+        write_wire(
+            &sessions,
+            "main",
+            &[usage_line(
+                "kimi-code/k3",
+                "2026-07-27T10:00:00+08:00",
+                1,
+                2,
+            )],
+        );
+
+        let stats = scan_with(
+            &sessions,
+            &PathBuf::from("/proc/kimicodebar-ro/scan-state.json"),
+            ms("2026-07-27T12:00:00+08:00"),
+            &tz8(),
+        );
+        assert_eq!(
+            stats.daily.iter().map(|d| d.tokens).sum::<u64>(),
+            // 1 + 2 + usage_line 固定的 inputCacheRead 11264
+            11267,
+            "状态写失败不应影响统计结果"
+        );
+        assert!(stats.last_scan_at.is_some());
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
     fn scan_throttles_within_180s() {
         let _guard = ENV_LOCK.lock().unwrap();
         let home = temp_dir("local-usage-home");
         let config = temp_dir("local-usage-conf");
-        std::env::set_var("USERPROFILE", &home);
+        let original_home = set_home(&home);
         std::env::set_var("KIMICODEBAR_CONFIG_DIR", &config);
 
         // 今日事件（用真实本地时钟，scan() 走 chrono::Local）
@@ -810,7 +879,7 @@ mod tests {
         let stats2 = scan();
         assert_eq!(stats2, stats1);
 
-        std::env::remove_var("USERPROFILE");
+        restore_home(original_home);
         std::env::remove_var("KIMICODEBAR_CONFIG_DIR");
         let _ = std::fs::remove_dir_all(&home);
         let _ = std::fs::remove_dir_all(&config);
