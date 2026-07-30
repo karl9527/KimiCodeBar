@@ -45,10 +45,40 @@ fn system_lang() -> Lang {
     }
 }
 
-/// 非 Windows 平台无系统区域探测（本应用仅发布 Windows，此处兜底英文）
+/// 非 Windows 平台：解析 LC_ALL / LANG（如 "zh_CN.UTF-8"），zh 开头（忽略大小写）
+/// → 中文，否则英文；变量缺失/为空/非法按英文（非中文系统给英文更稳妥）
 #[cfg(not(windows))]
 fn system_lang() -> Lang {
-    Lang::En
+    lang_from_locale(&locale_env())
+}
+
+/// LC_ALL / LANG 环境变量取值（LC_ALL 优先且空值视为未设置，POSIX 语义）
+#[cfg(not(windows))]
+fn locale_env() -> String {
+    pick_locale(
+        std::env::var("LC_ALL").ok().as_deref(),
+        std::env::var("LANG").ok().as_deref(),
+    )
+    .to_string()
+}
+
+/// LC_ALL 优先、空值视为未设置、其次 LANG（纯函数，便于单测）
+#[cfg(not(windows))]
+fn pick_locale<'a>(lc_all: Option<&'a str>, lang: Option<&'a str>) -> &'a str {
+    match lc_all {
+        Some(v) if !v.is_empty() => v,
+        _ => lang.unwrap_or(""),
+    }
+}
+
+/// 区域串 → 语言：zh 开头（忽略大小写与 .UTF-8 等后缀）判中文（纯函数，便于单测）
+#[cfg(not(windows))]
+fn lang_from_locale(locale: &str) -> Lang {
+    if locale.to_ascii_lowercase().starts_with("zh") {
+        Lang::Zh
+    } else {
+        Lang::En
+    }
 }
 
 /// 低额度系统通知标题
@@ -152,6 +182,47 @@ mod tests {
     fn resolve_explicit_zh_and_en() {
         assert_eq!(resolve(Some("zh")), Lang::Zh);
         assert_eq!(resolve(Some("en")), Lang::En);
+    }
+
+    // ---- 非 Windows：LC_ALL / LANG 解析（纯函数） ----
+
+    #[cfg(not(windows))]
+    #[test]
+    fn lang_from_locale_zh_variants() {
+        assert_eq!(lang_from_locale("zh_CN.UTF-8"), Lang::Zh);
+        assert_eq!(lang_from_locale("zh_CN"), Lang::Zh);
+        assert_eq!(lang_from_locale("zh_TW.UTF-8"), Lang::Zh);
+        assert_eq!(lang_from_locale("zh"), Lang::Zh);
+        // 大小写不敏感
+        assert_eq!(lang_from_locale("ZH_CN.UTF-8"), Lang::Zh);
+        assert_eq!(lang_from_locale("Zh"), Lang::Zh);
+    }
+
+    #[cfg(not(windows))]
+    #[test]
+    fn lang_from_locale_en_and_garbage() {
+        assert_eq!(lang_from_locale("en_US.UTF-8"), Lang::En);
+        assert_eq!(lang_from_locale("en_GB"), Lang::En);
+        assert_eq!(lang_from_locale("C"), Lang::En);
+        assert_eq!(lang_from_locale("POSIX"), Lang::En);
+        // 空串与非法值一律回退英文
+        assert_eq!(lang_from_locale(""), Lang::En);
+        assert_eq!(lang_from_locale("not-a-locale"), Lang::En);
+        assert_eq!(lang_from_locale("日本語"), Lang::En);
+    }
+
+    #[cfg(not(windows))]
+    #[test]
+    fn pick_locale_prefers_lc_all_then_lang() {
+        assert_eq!(
+            pick_locale(Some("zh_CN.UTF-8"), Some("en_US")),
+            "zh_CN.UTF-8"
+        );
+        // LC_ALL 为空按 POSIX 语义视为未设置，落回 LANG
+        assert_eq!(pick_locale(Some(""), Some("zh_CN.UTF-8")), "zh_CN.UTF-8");
+        assert_eq!(pick_locale(None, Some("zh_CN.UTF-8")), "zh_CN.UTF-8");
+        // 都缺省时为空串（由 lang_from_locale 判英文）
+        assert_eq!(pick_locale(None, None), "");
     }
 
     #[test]

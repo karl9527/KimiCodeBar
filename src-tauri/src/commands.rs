@@ -97,6 +97,8 @@ pub struct CredentialStatus {
     pub oauth_configured: bool,
     /// 网页 token（月度总量用）是否已配置
     pub web_token_configured: bool,
+    /// 安全存储后端："secret_service" | "file"（降级时设置页提示用户）
+    pub storage_backend: String,
 }
 
 /// 设备码登录流程状态（与 src/types.ts 的 DeviceLoginState 一一对应，
@@ -642,6 +644,7 @@ pub fn get_credential_status() -> CredentialStatus {
         api_key_masked: api_key.as_deref().map(mask_api_key),
         oauth_configured: matches!(oauth::load_credentials(), Ok(Some(_))),
         web_token_configured: matches!(creds::load_web_token(), Ok(Some(_))),
+        storage_backend: creds::active_backend().as_str().to_string(),
     }
 }
 

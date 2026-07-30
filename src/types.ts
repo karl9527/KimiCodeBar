@@ -95,6 +95,8 @@ export interface CredentialStatus {
   oauth_configured: boolean;
   /** 网页 token（月度总量用）是否已配置 */
   web_token_configured: boolean;
+  /** 安全存储后端：file 表示 Secret Service 不可用已降级为 0600 文件 */
+  storage_backend: "secret_service" | "file";
 }
 
 // ============ 用量趋势（本地历史，纯事实不预测）============

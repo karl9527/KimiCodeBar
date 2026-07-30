@@ -369,6 +369,10 @@ function SettingsApp() {
             </label>
             {methodMsg !== null && <p className="hint-ok">{methodMsg}</p>}
             {methodError !== null && <p className="hint-err">{methodError}</p>}
+            {/* Secret Service 不可用时的降级提示：API Key / 网页 token 已改存 0600 文件 */}
+            {status?.storage_backend === "file" && (
+              <p className="hint-warn">{t("settings.loginMethod.storageFallback")}</p>
+            )}
             {/* B/C. 按选中方式展示对应凭证配置区（嵌在本卡片内，不再自带卡片外壳） */}
             {method === "api_key" ? (
               <ApiKeySection status={status} onChanged={reloadStatus} />

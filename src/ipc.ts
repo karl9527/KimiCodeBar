@@ -254,6 +254,8 @@ function mockCredentialStatus(): CredentialStatus {
     api_key_masked: mockDb.apiKey ? `sk-kimi-****…${mockDb.apiKey.slice(-4)}` : null,
     oauth_configured: mockDb.oauthConfigured,
     web_token_configured: mockDb.webToken !== null,
+    // 浏览器 dev 环境假装 Secret Service 可用（不演示降级提示）
+    storage_backend: "secret_service",
   };
 }
 

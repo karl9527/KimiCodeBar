@@ -63,7 +63,8 @@
       "title": "登录方式",
       "apiKey": "方式A：API Key",
       "oauth": "方式B：账号授权登录",
-      "switched": "已切换登录方式，下次刷新生效"
+      "switched": "已切换登录方式，下次刷新生效",
+      "storageFallback": "当前环境没有可用的 Secret Service（如 gnome-keyring），API Key 与网页 token 已降级保存为 0600 权限的本地文件"
     },
     "general": {
       "title": "通用设置",

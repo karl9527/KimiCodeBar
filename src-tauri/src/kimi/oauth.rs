@@ -220,9 +220,10 @@ pub fn load_credentials() -> Result<Option<Credentials>, OAuthError> {
     }
 }
 
-/// 原子写入（临时文件 + rename）到 %APPDATA%\KimiCodeBar\credentials.json。
-/// 内容：JSON 序列化 → UTF-8 字节 → DPAPI 加密后的二进制密文；
-/// DPAPI 失败时宁可报错也不落明文。
+/// 原子写入（临时文件 + rename）到配置目录下的 credentials.json。
+/// 内容：JSON 序列化 → UTF-8 字节 →（Windows）DPAPI 加密后的二进制密文，
+/// DPAPI 失败时宁可报错也不落明文；非 Windows 为透传 JSON，
+/// 以 0600 权限兜底（与 Kimi Code CLI 自身的凭证文件做法一致）。
 pub fn save_credentials(creds: &Credentials) -> Result<(), OAuthError> {
     let path = credentials_file_path();
     let dir = path.parent().unwrap_or_else(|| std::path::Path::new("."));
@@ -232,6 +233,13 @@ pub fn save_credentials(creds: &Credentials) -> Result<(), OAuthError> {
     let blob = dpapi::protect(json.as_bytes()).map_err(OAuthError::Io)?;
     let tmp_path = dir.join("credentials.json.tmp");
     std::fs::write(&tmp_path, blob).map_err(|e| OAuthError::Io(e.to_string()))?;
+    // Unix 下显式收紧为 0600：凭证等价于密码，不允许同机其他用户可读
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&tmp_path, std::fs::Permissions::from_mode(0o600))
+            .map_err(|e| OAuthError::Io(e.to_string()))?;
+    }
     // Windows 上 rename 不允许目标已存在，先删再改名
     if path.exists() {
         std::fs::remove_file(&path).map_err(|e| OAuthError::Io(e.to_string()))?;
@@ -431,11 +439,28 @@ fn user_home_dir() -> Option<PathBuf> {
 }
 
 /// 主机名（Windows 上即 COMPUTERNAME）
+#[cfg(windows)]
 fn device_name() -> String {
     std::env::var("COMPUTERNAME").unwrap_or_else(|_| "Windows".to_string())
 }
 
+/// 主机名：HOSTNAME 环境变量或 /etc/hostname，兜底 "Linux"
+#[cfg(not(windows))]
+fn device_name() -> String {
+    std::env::var("HOSTNAME")
+        .ok()
+        .filter(|v| !v.is_empty())
+        .or_else(|| {
+            std::fs::read_to_string("/etc/hostname")
+                .ok()
+                .map(|s| s.trim().to_string())
+                .filter(|v| !v.is_empty())
+        })
+        .unwrap_or_else(|| "Linux".to_string())
+}
+
 /// 设备型号，如 "Windows 11"（build >= 22000）
+#[cfg(windows)]
 fn device_model() -> String {
     match windows_os_version() {
         Some((major, _, build)) if major >= 10 && build >= 22000 => "Windows 11".to_string(),
@@ -445,12 +470,29 @@ fn device_model() -> String {
     }
 }
 
+/// 设备型号：非 Windows 统一报 "Linux"
+#[cfg(not(windows))]
+fn device_model() -> String {
+    "Linux".to_string()
+}
+
 /// 尽量取真实系统版本，取不到给合理默认
+#[cfg(windows)]
 fn os_version_string() -> String {
     match windows_os_version() {
         Some((major, minor, build)) => format!("{major}.{minor}.{build}"),
         None => "10.0".to_string(),
     }
+}
+
+/// 内核版本（/proc/sys/kernel/osrelease），取不到报 "linux"
+#[cfg(not(windows))]
+fn os_version_string() -> String {
+    std::fs::read_to_string("/proc/sys/kernel/osrelease")
+        .ok()
+        .map(|s| s.trim().to_string())
+        .filter(|v| !v.is_empty())
+        .unwrap_or_else(|| "linux".to_string())
 }
 
 /// 通过 ntdll!RtlGetVersion 取真实版本（不受 manifest 影响），无需额外依赖
@@ -485,11 +527,6 @@ fn windows_os_version() -> Option<(u32, u32, u32)> {
     } else {
         None
     }
-}
-
-#[cfg(not(windows))]
-fn windows_os_version() -> Option<(u32, u32, u32)> {
-    None
 }
 
 /// 凭证文件目录：KIMICODEBAR_CONFIG_DIR 覆盖（测试/便携模式），否则
