@@ -12,7 +12,6 @@ use kimicodebar::kimi::oauth;
 use kimicodebar::kimi::web::{self, MonthlyInfo, WebError};
 use kimicodebar::quota::{needs_low_warning, KimiQuota, QuotaError};
 use kimicodebar::storage::{self, CachedQuota};
-use kimicodebar::update;
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager, State};
 use tauri_plugin_autostart::ManagerExt;
@@ -508,37 +507,15 @@ const UPDATE_CACHE_OK_SECS: u64 = 6 * 3600;
 /// 错误结果缓存时长（秒）：10 分钟，限流期防刷
 const UPDATE_CACHE_ERR_SECS: u64 = 10 * 60;
 
-/// 真正走网络的更新检查：拉取最新 Release（重定向路径优先，API 兜底），与内置版本号比较
+/// 更新检查：按 ADR-0003，自用构建无应用内更新机制——不访问网络，
+/// 直接返回"已是最新"。上游 Windows 版的 GitHub Releases 检查对本构建无意义。
 async fn fetch_update_info() -> UpdateInfo {
-    let current = env!("CARGO_PKG_VERSION").to_string();
-    // UA / 10s 超时 / 不跟随重定向由 update::fetch_latest 统一配置
-    match update::fetch_latest().await {
-        Ok(release) => {
-            // 剥掉 tag 的 v/V 前缀：前端展示统一为 "v{latest}"，避免 "vv0.1.2" 双前缀
-            let latest = release.tag.trim_start_matches(['v', 'V']).to_string();
-            let has_update = update::is_newer(&latest, &current);
-            tracing::info!(
-                "更新检查完成: current={current}, latest={latest}, has_update={has_update}"
-            );
-            UpdateInfo {
-                has_update,
-                latest: Some(latest),
-                release_url: Some(release.url),
-                current,
-                error: None,
-            }
-        }
-        // 错误结果同样进缓存（10 分钟 TTL），避免限流期反复打 GitHub
-        Err(message) => {
-            tracing::warn!("更新检查失败: {message}");
-            UpdateInfo {
-                current,
-                latest: None,
-                has_update: false,
-                release_url: None,
-                error: Some(message),
-            }
-        }
+    UpdateInfo {
+        has_update: false,
+        latest: None,
+        release_url: None,
+        current: env!("CARGO_PKG_VERSION").to_string(),
+        error: None,
     }
 }
 

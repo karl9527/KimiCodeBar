@@ -24,7 +24,7 @@ fn main() {
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             panel::show_panel_for_second_instance(app);
         }))
-        // 全局热键：面板可见则隐藏，不可见则按托盘定位显示（与左键点托盘一致）
+        // 全局热键：面板可见则隐藏，不可见则显示（与左键点托盘一致）
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
                 .with_handler(|app, _shortcut, event| {

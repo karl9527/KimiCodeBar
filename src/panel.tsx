@@ -4,9 +4,9 @@ import { useTranslation } from "react-i18next";
 import "./styles.css";
 import i18n, { resolveLang } from "./i18n";
 import { useTheme } from "./theme";
-import type { HistoryPoint, LocalUsageStats, PanelState, QuotaDetail, UpdateInfo } from "./types";
+import type { HistoryPoint, LocalUsageStats, PanelState, QuotaDetail } from "./types";
 import { convertFileSrc } from "@tauri-apps/api/core";
-import { checkUpdate, getLocalUsage, getPanelState, getSettings, getUsageHistory, isTauri, refreshNow, openSettings, openExternalUrl, onQuotaUpdated, onSettingsChanged, onUpdateInfo } from "./ipc";
+import { getLocalUsage, getPanelState, getSettings, getUsageHistory, isTauri, refreshNow, openSettings, onQuotaUpdated, onSettingsChanged } from "./ipc";
 import { UsageCard } from "./components/UsageCard";
 import { MonthlyCard } from "./components/MonthlyCard";
 import { TrendCard } from "./components/TrendCard";
@@ -33,8 +33,6 @@ function PanelApp() {
   useTheme();
   const [state, setState] = useState<PanelState | null>(null);
   const [refreshing, setRefreshing] = useState(false);
-  // 更新检查结果（仅 has_update 时有值，驱动底栏徽标）
-  const [update, setUpdate] = useState<UpdateInfo | null>(null);
   // 历史采样点（趋势卡用）；null = 尚未加载
   const [history, setHistory] = useState<HistoryPoint[] | null>(null);
   // 本地 token 消耗统计（本地统计卡用）；null = 尚未加载
@@ -137,21 +135,10 @@ function PanelApp() {
         if (alive) setLocalUsage(u);
       })
       .catch(() => {});
-    // 与首屏状态并行检查一次更新；失败（含 error 字段）静默，不打扰用户
-    checkUpdate()
-      .then((info) => {
-        if (alive && info.has_update) setUpdate(info);
-      })
-      .catch(() => {});
-    // 订阅后端主动推送的更新检查结果（托盘打开面板时的后台检查完成会广播 update-info）
-    const unlistenUpdate = onUpdateInfo((info) => {
-      if (info.has_update) setUpdate(info);
-    });
     const timer = setInterval(() => setTick((t) => t + 1), 60_000);
     return () => {
       alive = false;
       unlisten();
-      unlistenUpdate();
       clearInterval(timer);
     };
   }, [doRefresh]);
@@ -194,8 +181,6 @@ function PanelApp() {
     : null;
 
   const busy = refreshing || state.loading;
-  // 有新版本且拿到发布页地址时，底栏"更新于"左侧显示更新徽标
-  const updateUrl = update?.has_update ? update.release_url : null;
 
   return (
     <div className={panelCls} style={bgStyle}>
@@ -221,16 +206,6 @@ function PanelApp() {
       )}
       <div className="footer">
         <span className="fetched-at">
-          {updateUrl !== null && update?.latest && (
-            <button
-              type="button"
-              className="update-badge"
-              onClick={() => void openExternalUrl(updateUrl)}
-              title={t("panel.updateBadgeTitle")}
-            >
-              ⬆ v{update.latest}
-            </button>
-          )}
           {state.fetched_at
             ? t("panel.updatedAt", { time: formatFetchedAt(state.fetched_at) })
             : t("panel.noData")}

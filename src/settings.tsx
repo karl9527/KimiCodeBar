@@ -6,16 +6,14 @@ import { useTranslation } from "react-i18next";
 import "./styles.css";
 import i18n, { resolveLang } from "./i18n";
 import { applyTheme, useTheme } from "./theme";
-import type { AppSettings, CredentialStatus, LoginMethod, ThemeMode, UpdateInfo } from "./types";
+import type { AppSettings, CredentialStatus, LoginMethod, ThemeMode } from "./types";
 import {
-  checkUpdate,
   exportDiagnostics,
   exportUsageReport,
   getCredentialStatus,
   getSettings,
   isTauri,
   onSettingsChanged,
-  openExternalUrl,
   openLogDir,
   saveSettings,
 } from "./ipc";
@@ -82,11 +80,6 @@ function SettingsApp() {
   const usageTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // 底栏版本号（初始值兼作浏览器 dev 的 mock 回落）
   const [version, setVersion] = useState("0.1.0");
-  // 检查更新：checking=请求中；found=有新版（常驻展示，点击去下载）；msg=短时提示（自动消失）
-  const [updateChecking, setUpdateChecking] = useState(false);
-  const [updateFound, setUpdateFound] = useState<UpdateInfo | null>(null);
-  const [updateMsg, setUpdateMsg] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
-  const updateTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // 折叠卡片展开态：登录 / 通用设置 / 诊断与日志（默认收起；无任何凭证时登录卡自动展开引导配置）
   const [loginOpen, setLoginOpen] = useState(false);
   const [generalOpen, setGeneralOpen] = useState(false);
@@ -185,46 +178,15 @@ function SettingsApp() {
       });
   }, []);
 
-  // 卸载时清掉"已保存"/"已导出"与更新提示的定时器
+  // 卸载时清掉"已保存"/"已导出"提示的定时器
   useEffect(
     () => () => {
       if (savedTimerRef.current !== null) clearTimeout(savedTimerRef.current);
       if (exportTimerRef.current !== null) clearTimeout(exportTimerRef.current);
       if (usageTimerRef.current !== null) clearTimeout(usageTimerRef.current);
-      if (updateTimerRef.current !== null) clearTimeout(updateTimerRef.current);
     },
     [],
   );
-
-  /** 展示一条更新检查的短时提示，到时自动消失 */
-  const showUpdateMsg = (kind: "ok" | "err", text: string, ms: number) => {
-    setUpdateMsg({ kind, text });
-    if (updateTimerRef.current !== null) clearTimeout(updateTimerRef.current);
-    updateTimerRef.current = setTimeout(() => setUpdateMsg(null), ms);
-  };
-
-  /** 手动检查更新：新版常驻展示下载入口，"已是最新"2 秒消失，失败原因 3 秒消失 */
-  const doCheckUpdate = async () => {
-    setUpdateChecking(true);
-    setUpdateFound(null);
-    setUpdateMsg(null);
-    try {
-      // force=true：手动点击无条件走网络，绕过后端 6h/10min 缓存
-      const info = await checkUpdate(true);
-      if (info.error !== null) {
-        showUpdateMsg("err", info.error, 3000);
-      } else if (info.has_update && info.latest !== null) {
-        setUpdateFound(info);
-      } else {
-        showUpdateMsg("ok", t("settings.footer.upToDate"), 2000);
-      }
-    } catch (e) {
-      // invoke 本身抛错（命令未注册等）也按检查失败展示
-      showUpdateMsg("err", String(e), 3000);
-    } finally {
-      setUpdateChecking(false);
-    }
-  };
 
   /** 切换登录方式：本地选中态立即更新，并把 login_method 持久化 */
   const switchMethod = async (m: LoginMethod) => {
@@ -360,11 +322,6 @@ function SettingsApp() {
       </div>
     );
   }
-
-  // 发现新版时的发布页地址（仅在 latest 与 release_url 齐备时展示下载入口）
-  const foundUrl = updateFound !== null && updateFound.latest !== null
-    ? updateFound.release_url
-    : null;
 
   return (
     <div className={settingsCls} style={bgStyle}>
@@ -587,38 +544,9 @@ function SettingsApp() {
         )}
       </section>
 
-      {/* F. 底栏：动态版本号 + 检查更新 */}
+      {/* F. 底栏：动态版本号（ADR-0003：自用构建无更新检查入口） */}
       <footer className="settings-footer">
         KimiCodeBar v{version}
-        {" · "}
-        <button
-          type="button"
-          className="link"
-          onClick={() => void doCheckUpdate()}
-          disabled={updateChecking}
-        >
-          {updateChecking ? t("settings.footer.checking") : t("settings.footer.checkUpdate")}
-        </button>
-        {foundUrl !== null && (
-          <>
-            {" · "}
-            <button
-              type="button"
-              className="link"
-              onClick={() => void openExternalUrl(foundUrl)}
-            >
-              {t("settings.footer.foundVersion", { version: updateFound?.latest })}
-            </button>
-          </>
-        )}
-        {updateMsg !== null && (
-          <>
-            {" · "}
-            <span className={updateMsg.kind === "err" ? "hint-err" : "hint-ok"}>
-              {updateMsg.text}
-            </span>
-          </>
-        )}
       </footer>
     </div>
   );

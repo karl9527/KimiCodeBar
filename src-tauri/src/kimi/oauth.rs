@@ -492,19 +492,22 @@ fn windows_os_version() -> Option<(u32, u32, u32)> {
     None
 }
 
-/// 凭证文件目录：KIMICODEBAR_CONFIG_DIR 覆盖（测试/便携模式），否则 %APPDATA%\KimiCodeBar
+/// 凭证文件目录：KIMICODEBAR_CONFIG_DIR 覆盖（测试/便携模式），否则
+/// $XDG_CONFIG_HOME/kimicodebar 或 ~/.config/kimicodebar（XDG 规范，
+/// 与 storage::config_dir 保持一致，两份实现需同步修改）
 fn config_dir() -> PathBuf {
     if let Some(dir) = std::env::var_os("KIMICODEBAR_CONFIG_DIR") {
         return PathBuf::from(dir);
     }
-    if let Some(appdata) = std::env::var_os("APPDATA") {
-        return PathBuf::from(appdata).join("KimiCodeBar");
+    if let Some(xdg) = std::env::var_os("XDG_CONFIG_HOME") {
+        if !xdg.is_empty() {
+            return PathBuf::from(xdg).join("kimicodebar");
+        }
     }
-    // 兜底：用户目录下 AppData\Roaming，再不行用临时目录
     if let Some(home) = user_home_dir() {
-        return home.join("AppData").join("Roaming").join("KimiCodeBar");
+        return home.join(".config").join("kimicodebar");
     }
-    std::env::temp_dir().join("KimiCodeBar")
+    std::env::temp_dir().join("kimicodebar")
 }
 
 fn credentials_file_path() -> PathBuf {
@@ -705,15 +708,18 @@ mod tests {
         assert_eq!(creds.expires_at, Some(1_900_000_000));
         assert_eq!(creds.scope.as_deref(), Some("legacy-scope"));
 
-        // 读取后文件已被原地升级为密文
-        let raw = std::fs::read(dir.join("credentials.json")).unwrap();
-        let raw_text = String::from_utf8_lossy(&raw);
-        assert!(
-            !raw_text.contains("legacy-access"),
-            "迁移后文件不应再含明文 token"
-        );
+        // 读取后文件已被原地升级为密文（Windows DPAPI）；非 Windows 为透传实现，
+        // 磁盘仍是明文 JSON —— Linux 凭证存储语义由 Issue 0002 落地
         #[cfg(windows)]
-        assert!(serde_json::from_slice::<serde_json::Value>(&raw).is_err());
+        {
+            let raw = std::fs::read(dir.join("credentials.json")).unwrap();
+            let raw_text = String::from_utf8_lossy(&raw);
+            assert!(
+                !raw_text.contains("legacy-access"),
+                "迁移后文件不应再含明文 token"
+            );
+            assert!(serde_json::from_slice::<serde_json::Value>(&raw).is_err());
+        }
 
         // 升级后的密文仍可正常读回
         let creds = load_credentials().unwrap().expect("迁移后的密文应能读回");

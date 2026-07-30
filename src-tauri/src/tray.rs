@@ -5,7 +5,7 @@ use tauri::{
 };
 
 use crate::commands;
-use crate::panel::{self, TrayRect};
+use crate::panel;
 
 pub const TRAY_ID: &str = "main-tray";
 
@@ -29,7 +29,6 @@ pub fn setup(app: &AppHandle) -> tauri::Result<()> {
             if let TrayIconEvent::Click {
                 button: MouseButton::Left,
                 button_state: MouseButtonState::Up,
-                rect,
                 ..
             } = event
             {
@@ -40,8 +39,8 @@ pub fn setup(app: &AppHandle) -> tauri::Result<()> {
                         commands::refresh_if_stale(app);
                     }
                 }
-                let tray_rect = TrayRect::new(rect.position, rect.size);
-                panel::toggle_panel(app, tray_rect);
+                // ADR-0002：普通窗口模式，不再使用事件里的托盘 rect
+                panel::toggle_panel(app);
             }
         })
         .on_menu_event(|app, event| match event.id().as_ref() {

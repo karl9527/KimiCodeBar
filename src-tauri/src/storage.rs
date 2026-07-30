@@ -155,22 +155,22 @@ fn save_json<T: Serialize>(path: &PathBuf, tmp_name: &str, value: &T) -> Result<
     std::fs::rename(&tmp_path, path).map_err(|e| format!("重命名临时文件失败: {e}"))
 }
 
-/// 配置目录：KIMICODEBAR_CONFIG_DIR 覆盖，否则 %APPDATA%\KimiCodeBar
+/// 配置目录：KIMICODEBAR_CONFIG_DIR 覆盖（测试/便携模式），否则
+/// $XDG_CONFIG_HOME/kimicodebar 或 ~/.config/kimicodebar（XDG Base Directory 规范）
 /// （与 kimi::oauth::config_dir 保持一致，两份实现需同步修改）
 pub fn config_dir() -> PathBuf {
     if let Some(dir) = std::env::var_os("KIMICODEBAR_CONFIG_DIR") {
         return PathBuf::from(dir);
     }
-    if let Some(appdata) = std::env::var_os("APPDATA") {
-        return PathBuf::from(appdata).join("KimiCodeBar");
+    if let Some(xdg) = std::env::var_os("XDG_CONFIG_HOME") {
+        if !xdg.is_empty() {
+            return PathBuf::from(xdg).join("kimicodebar");
+        }
     }
-    if let Some(home) = std::env::var_os("USERPROFILE").or_else(|| std::env::var_os("HOME")) {
-        return PathBuf::from(home)
-            .join("AppData")
-            .join("Roaming")
-            .join("KimiCodeBar");
+    if let Some(home) = std::env::var_os("HOME") {
+        return PathBuf::from(home).join(".config").join("kimicodebar");
     }
-    std::env::temp_dir().join("KimiCodeBar")
+    std::env::temp_dir().join("kimicodebar")
 }
 
 fn settings_file_path() -> PathBuf {
@@ -423,5 +423,106 @@ mod tests {
         assert_eq!(m.reset_time.as_deref(), Some("2026-08-01T00:00:00Z"));
 
         cleanup(&dir);
+    }
+
+    // ---- config_dir：XDG 解析与覆盖优先级 ----
+
+    /// 捕获并在离开作用域时恢复三个相关环境变量的现场
+    struct EnvGuard {
+        override_dir: Option<std::ffi::OsString>,
+        xdg: Option<std::ffi::OsString>,
+        home: Option<std::ffi::OsString>,
+    }
+
+    impl EnvGuard {
+        fn capture() -> Self {
+            EnvGuard {
+                override_dir: std::env::var_os("KIMICODEBAR_CONFIG_DIR"),
+                xdg: std::env::var_os("XDG_CONFIG_HOME"),
+                home: std::env::var_os("HOME"),
+            }
+        }
+    }
+
+    impl Drop for EnvGuard {
+        fn drop(&mut self) {
+            restore_env("KIMICODEBAR_CONFIG_DIR", self.override_dir.take());
+            restore_env("XDG_CONFIG_HOME", self.xdg.take());
+            restore_env("HOME", self.home.take());
+        }
+    }
+
+    fn restore_env(key: &str, value: Option<std::ffi::OsString>) {
+        match value {
+            Some(v) => std::env::set_var(key, v),
+            None => std::env::remove_var(key),
+        }
+    }
+
+    #[test]
+    fn config_dir_override_wins_over_xdg() {
+        let _guard = ENV_LOCK.lock().unwrap();
+        let _env = EnvGuard::capture();
+        std::env::set_var("KIMICODEBAR_CONFIG_DIR", "/tmp/kcb-override");
+        std::env::set_var("XDG_CONFIG_HOME", "/tmp/kcb-xdg");
+
+        assert_eq!(config_dir(), PathBuf::from("/tmp/kcb-override"));
+    }
+
+    #[test]
+    fn config_dir_prefers_xdg_config_home() {
+        let _guard = ENV_LOCK.lock().unwrap();
+        let _env = EnvGuard::capture();
+        std::env::remove_var("KIMICODEBAR_CONFIG_DIR");
+        std::env::set_var("XDG_CONFIG_HOME", "/tmp/kcb-xdg");
+        std::env::set_var("HOME", "/tmp/kcb-home");
+
+        assert_eq!(
+            config_dir(),
+            PathBuf::from("/tmp/kcb-xdg").join("kimicodebar")
+        );
+    }
+
+    #[test]
+    fn config_dir_empty_xdg_falls_back_to_home_dot_config() {
+        let _guard = ENV_LOCK.lock().unwrap();
+        let _env = EnvGuard::capture();
+        std::env::remove_var("KIMICODEBAR_CONFIG_DIR");
+        std::env::set_var("XDG_CONFIG_HOME", "");
+        std::env::set_var("HOME", "/tmp/kcb-home");
+
+        assert_eq!(
+            config_dir(),
+            PathBuf::from("/tmp/kcb-home")
+                .join(".config")
+                .join("kimicodebar")
+        );
+    }
+
+    #[test]
+    fn config_dir_unset_xdg_uses_home_dot_config() {
+        let _guard = ENV_LOCK.lock().unwrap();
+        let _env = EnvGuard::capture();
+        std::env::remove_var("KIMICODEBAR_CONFIG_DIR");
+        std::env::remove_var("XDG_CONFIG_HOME");
+        std::env::set_var("HOME", "/tmp/kcb-home");
+
+        assert_eq!(
+            config_dir(),
+            PathBuf::from("/tmp/kcb-home")
+                .join(".config")
+                .join("kimicodebar")
+        );
+    }
+
+    #[test]
+    fn config_dir_no_home_falls_back_to_temp() {
+        let _guard = ENV_LOCK.lock().unwrap();
+        let _env = EnvGuard::capture();
+        std::env::remove_var("KIMICODEBAR_CONFIG_DIR");
+        std::env::remove_var("XDG_CONFIG_HOME");
+        std::env::remove_var("HOME");
+
+        assert_eq!(config_dir(), std::env::temp_dir().join("kimicodebar"));
     }
 }
