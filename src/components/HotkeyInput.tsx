@@ -87,6 +87,8 @@ interface HotkeyInputProps {
   value: string;
   /** 录制成功或清除时回调新值（清除为空串） */
   onChange: (value: string) => void;
+  /** 平台限制禁用（如 Wayland 会话）：输入框置灰且不可录制 */
+  disabled?: boolean;
 }
 
 /**
@@ -94,7 +96,7 @@ interface HotkeyInputProps {
  * 单独 Esc 取消、单独 Backspace/Delete 清除（保存后禁用）。
  * 录制期间临时注销全局热键，否则已注册的组合被系统拦截，本输入框收不到按键。
  */
-export function HotkeyInput({ value, onChange }: HotkeyInputProps) {
+export function HotkeyInput({ value, onChange, disabled = false }: HotkeyInputProps) {
   const { t } = useTranslation();
   const [recording, setRecording] = useState(false);
   /** 录制中的修饰键预览（如 "Ctrl+Shift+"，主键未定）；无修饰键时为空串走 placeholder */
@@ -199,6 +201,8 @@ export function HotkeyInput({ value, onChange }: HotkeyInputProps) {
           className="input hotkey-input"
           type="text"
           readOnly
+          disabled={disabled}
+          style={disabled ? { opacity: 0.5 } : undefined}
           placeholder={
             recording
               ? t("settings.general.hotkeyRecordingPlaceholder")

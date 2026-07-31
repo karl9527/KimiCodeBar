@@ -615,3 +615,9 @@ export async function setSessionArchived(path: string, archived: boolean): Promi
   }
   return invoke<boolean>("set_session_archived", { path, archived });
 }
+
+/** 当前桌面会话类型（"wayland" / "x11" / 其他）：设置页热键平台限制提示用 */
+export async function getSessionType(): Promise<string> {
+  if (!isTauri) return "x11";
+  return invoke<string>("get_session_type");
+}

@@ -11,6 +11,7 @@ import {
   exportDiagnostics,
   exportUsageReport,
   getCredentialStatus,
+  getSessionType,
   getSettings,
   isTauri,
   onSettingsChanged,
@@ -88,6 +89,8 @@ function SettingsApp() {
   const [generalOpen, setGeneralOpen] = useState(false);
   const [diagOpen, setDiagOpen] = useState(false);
   const [archiveOpen, setArchiveOpen] = useState(false);
+  // 桌面会话类型（"wayland" 时禁用全局热键并提示平台限制）
+  const [sessionType, setSessionType] = useState("");
   // 预设背景 id（纯 CSS 渐变 class）；null = 未选预设
   const [bgPreset, setBgPreset] = useState<string | null>(null);
   // 自定义背景图（kimibg:// 协议 URL）；null = 无图
@@ -181,6 +184,13 @@ function SettingsApp() {
       .catch(() => {
         // 拿不到版本号时保持回落值，不影响设置页其他功能
       });
+  }, []);
+
+  // 会话类型探测：Wayland 下全局热键按平台限制禁用（ADR-0002 已接受后果）
+  useEffect(() => {
+    getSessionType()
+      .then(setSessionType)
+      .catch(() => {});
   }, []);
 
   // 卸载时清掉"已保存"/"已导出"提示的定时器
@@ -464,7 +474,11 @@ function SettingsApp() {
             <HotkeyInput
               value={form.hotkey}
               onChange={(v) => setForm((f) => ({ ...f, hotkey: v }))}
+              disabled={sessionType === "wayland"}
             />
+            {sessionType === "wayland" && (
+              <p className="hint-warn">{t("settings.general.hotkeyWayland")}</p>
+            )}
             <div className="form-row">
               <label htmlFor="language">{t("settings.general.language")}</label>
               <select

@@ -548,10 +548,18 @@ pub fn open_settings(app: AppHandle) {
     }
 }
 
+/// 当前桌面会话类型（"wayland" / "x11" / 其他原样小写返回）：
+/// 设置页据此对全局热键做平台限制提示（ADR-0002 的已接受后果）
+#[tauri::command]
+pub fn get_session_type() -> String {
+    std::env::var("XDG_SESSION_TYPE")
+        .unwrap_or_default()
+        .to_ascii_lowercase()
+}
+
 // ---------------------------------------------------------------------------
 // 会话归档
 // ---------------------------------------------------------------------------
-
 /// 归档总览（与 src/types.ts 的 ArchiveOverview 一一对应）
 #[derive(Debug, Clone, Serialize)]
 pub struct ArchiveOverview {

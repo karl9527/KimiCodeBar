@@ -8,6 +8,13 @@
 use tauri::AppHandle;
 use tauri_plugin_global_shortcut::GlobalShortcutExt;
 
+/// 当前是否为 Wayland 会话（全局热键走 X11 协议，Wayland 下无法注册）
+fn is_wayland() -> bool {
+    std::env::var("XDG_SESSION_TYPE")
+        .map(|v| v.eq_ignore_ascii_case("wayland"))
+        .unwrap_or(false)
+}
+
 /// 规范化用户输入的热键为 tauri 全局快捷键格式（如 "Control+Shift+K"）。
 ///
 /// 规则：大小写不敏感；`ctrl` 归一为 `Control`；允许 `CmdOrControl`；
@@ -76,6 +83,13 @@ pub fn apply(app: &AppHandle, hotkey: Option<&str>) -> Result<(), String> {
     };
 
     let normalized = normalize_hotkey(raw)?;
+    // Wayland 会话全局热键不可用（X11 协议）：报平台限制而非误导性的"被占用"
+    if is_wayland() {
+        tracing::info!("Wayland 会话：全局热键按平台限制不注册（{normalized}）");
+        return Err(
+            "当前桌面会话为 Wayland，全局热键受平台限制不可用（仅 X11 会话支持）".to_string(),
+        );
+    }
     manager.register(normalized.as_str()).map_err(|_| {
         tracing::warn!("全局热键注册失败（可能被占用）: {normalized}");
         "热键注册失败：可能被其他程序占用".to_string()

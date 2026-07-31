@@ -97,6 +97,7 @@ fn main() {
             commands::set_auto_archive,
             commands::archive_eligible_now,
             commands::set_session_archived,
+            commands::get_session_type,
         ])
         .setup(|app| {
             // 日志必须最先初始化：之后所有埋点才有着落；失败退回 stderr，不 panic

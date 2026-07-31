@@ -77,6 +77,7 @@
       "hotkeyPlaceholder": "点击此处后按下组合键，留空禁用",
       "hotkeyRecordingPlaceholder": "请按下组合键…",
       "hotkeyHint": "唤起/收起面板；点击输入框后按组合键录制；按 Esc 取消；按 Backspace 清空并禁用；随“保存设置”生效",
+      "hotkeyWayland": "当前桌面会话为 Wayland，全局热键不可用（仅 X11 会话支持）",
       "hotkeyNeedModifier": "需同时按住 Ctrl / Alt / Shift 中至少一个",
       "hotkeyNoWin": "暂不支持 Win 键组合",
       "hotkeyUnsupported": "不支持该按键",
