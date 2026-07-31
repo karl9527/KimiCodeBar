@@ -21,7 +21,7 @@
         "alwaysOnTop": true,
         "skipTaskbar": true,
         "resizable": false,
-        "visible": false,
+        "visible": true,
         "backgroundColor": "#1a1b26"
       },
       {
@@ -30,7 +30,7 @@
         "width": 520,
         "height": 640,
         "url": "settings.html",
-        "visible": false
+        "visible": true
       }
     ]
   },

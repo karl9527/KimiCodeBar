@@ -12,3 +12,4 @@ macOS/Windows 版的面板定位在托盘图标上方，依赖托盘图标的几
 ## Consequences
 
 - 全局热键（tauri-plugin-global-shortcut）在 Wayland 下不可用、X11 下正常；代码保留，接受该限制，不视为 bug。
+- Linux AppIndicator 不向应用投递托盘左键点击事件（点击只弹出菜单），故「显示面板」固定为托盘菜单首项作为面板入口；macOS/Windows 的左键切换面板路径保留不受影响。

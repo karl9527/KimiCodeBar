@@ -171,6 +171,15 @@ fn main() {
                 });
             }
 
+            // Wayland 规避（tao 在 Wayland 上对初始未映射窗口的 show()/hide() 可能静默
+            // 失败）：两个窗口都以 visible:true 创建完成首次映射配置后，立即隐藏回托盘常态
+            if let Some(main_window) = app.get_webview_window("main") {
+                let _ = main_window.hide();
+            }
+            if let Some(settings_window) = app.get_webview_window("settings") {
+                let _ = settings_window.hide();
+            }
+
             // 设置窗口点关闭时只隐藏不销毁，保证能从托盘菜单再次打开
             if let Some(settings_window) = app.get_webview_window("settings") {
                 let window = settings_window.clone();

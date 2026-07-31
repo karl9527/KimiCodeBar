@@ -13,12 +13,14 @@ pub const TRAY_ID: &str = "main-tray";
 const ICON_NORMAL: &[u8] = include_bytes!("../icons/tray-normal.png");
 const ICON_WARN: &[u8] = include_bytes!("../icons/tray-warn.png");
 
-/// 创建系统托盘图标：左键切换主面板，右键弹出菜单（刷新 / 设置 / 退出）。
+/// 创建系统托盘图标：左键弹出菜单（AppIndicator 不向应用投递点击事件），
+/// 菜单首项「显示面板」即打开用量面板的入口（Linux AppIndicator 惯例）。
 pub fn setup(app: &AppHandle) -> tauri::Result<()> {
+    let show = MenuItem::with_id(app, "show", "显示面板", true, None::<&str>)?;
     let refresh = MenuItem::with_id(app, "refresh", "刷新", true, None::<&str>)?;
     let settings = MenuItem::with_id(app, "settings", "设置", true, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", "退出", true, None::<&str>)?;
-    let menu = Menu::with_items(app, &[&refresh, &settings, &quit])?;
+    let menu = Menu::with_items(app, &[&show, &refresh, &settings, &quit])?;
 
     TrayIconBuilder::with_id(TRAY_ID)
         .tooltip("KimiCodeBar")
@@ -44,6 +46,16 @@ pub fn setup(app: &AppHandle) -> tauri::Result<()> {
             }
         })
         .on_menu_event(|app, event| match event.id().as_ref() {
+            "show" => {
+                let app = app.clone();
+                // 与左键切换路径一致：面板将由隐藏变显示时先补齐陈旧数据
+                if let Some(window) = app.get_webview_window("main") {
+                    if !window.is_visible().unwrap_or(false) {
+                        commands::refresh_if_stale(&app);
+                    }
+                }
+                panel::show_panel(&app);
+            }
             "refresh" => {
                 let app = app.clone();
                 tauri::async_runtime::spawn(async move {

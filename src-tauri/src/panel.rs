@@ -24,6 +24,7 @@ pub fn toggle_panel(app: &AppHandle) {
 /// 窗口位置由合成器决定（通常居中），属已接受的降级，勿"修复"回吸附式。
 pub fn show_panel(app: &AppHandle) {
     let Some(window) = app.get_webview_window("main") else {
+        tracing::warn!("show_panel: 找不到 main 窗口");
         return;
     };
     position_top_right(app, &window);
