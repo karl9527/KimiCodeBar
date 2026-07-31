@@ -63,10 +63,11 @@ pub fn start(app: AppHandle) {
     });
 }
 
-/// low_warn_enabled 且配额存在时发系统通知，正文为各窗口剩余百分比（语言随设置）
+/// 预警通知：总开关（low_warn_enabled）与通知开关（low_warn_notify_enabled）
+/// 都开着且配额存在时发系统通知，正文为各窗口剩余百分比（语言随设置）
 fn notify_low_warning(app: &AppHandle, panel: &crate::commands::PanelState) {
     let settings = storage::load_settings().unwrap_or_default();
-    if !settings.low_warn_enabled {
+    if !settings.low_warn_enabled || !settings.low_warn_notify_enabled {
         return;
     }
     let Some(quota) = &panel.quota else {
@@ -105,17 +106,17 @@ fn reset_remind_due(
     now < reset_time && reset_time - now <= chrono::Duration::minutes(RESET_REMIND_WINDOW_MIN)
 }
 
-/// 5h 窗口重置前提醒：low_warn_enabled 开着、5h 窗口剩余量 > 0（已烧完没必要提醒）
-/// 且进入重置前 15 分钟窗口时，发系统通知。
+/// 5h 窗口重置前提醒：双开关（预警总开关 + 通知开关）都开着、5h 窗口剩余量 > 0
+/// （已烧完没必要提醒）且进入重置前 15 分钟窗口时，发系统通知。
 /// 返回本次提醒针对的重置时刻（调用方用于去重）；未提醒返回 None。
 fn notify_reset_reminder(
     app: &AppHandle,
     panel: &PanelState,
     last_reminded: Option<DateTime<Utc>>,
 ) -> Option<DateTime<Utc>> {
-    // 与低额度预警共用同一个通知总开关，不新增设置项
+    // 与低额度预警共用同一组开关
     let settings = storage::load_settings().unwrap_or_default();
-    if !settings.low_warn_enabled {
+    if !settings.low_warn_enabled || !settings.low_warn_notify_enabled {
         return None;
     }
     // 仅 5 小时窗口：7 天窗口周期太长，"用完"语义弱，不提醒

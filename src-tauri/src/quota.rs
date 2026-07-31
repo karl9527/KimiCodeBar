@@ -279,3 +279,67 @@ fn parse_num(s: Option<&str>) -> Option<f64> {
     s.and_then(|v| v.trim().parse::<i64>().ok())
         .map(|v| v as f64)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn quota_with_windows(weekly: Option<f64>, five_hour: Option<f64>) -> KimiQuota {
+        KimiQuota {
+            weekly: weekly.map(|p| QuotaDetail {
+                percent_remaining: p,
+                ..Default::default()
+            }),
+            five_hour: five_hour.map(|p| QuotaDetail {
+                percent_remaining: p,
+                ..Default::default()
+            }),
+            ..Default::default()
+        }
+    }
+
+    // ---- needs_low_warning：阈值判定与边界（严格小于才告警） ----
+
+    #[test]
+    fn below_threshold_in_any_window_warns() {
+        assert!(needs_low_warning(
+            &quota_with_windows(Some(19.9), None),
+            20.0
+        ));
+        assert!(needs_low_warning(
+            &quota_with_windows(None, Some(19.9)),
+            20.0
+        ));
+        // 月度总量窗口同样参与判定
+        let q = KimiQuota {
+            total: Some(TotalQuotaInfo {
+                limit: 100.0,
+                remaining: 19.9,
+                percent_remaining: 19.9,
+            }),
+            ..Default::default()
+        };
+        assert!(needs_low_warning(&q, 20.0));
+    }
+
+    #[test]
+    fn exactly_at_threshold_does_not_warn() {
+        assert!(!needs_low_warning(
+            &quota_with_windows(Some(20.0), Some(20.0)),
+            20.0
+        ));
+    }
+
+    #[test]
+    fn above_threshold_does_not_warn() {
+        assert!(!needs_low_warning(
+            &quota_with_windows(Some(20.1), Some(99.0)),
+            20.0
+        ));
+    }
+
+    #[test]
+    fn no_windows_does_not_warn() {
+        assert!(!needs_low_warning(&KimiQuota::default(), 20.0));
+    }
+}

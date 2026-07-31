@@ -67,8 +67,10 @@ export interface AppSettings {
   login_method: LoginMethod | null;
   /** 自动刷新间隔（分钟，最小 1，默认 5） */
   refresh_interval_min: number;
-  /** 低额度告警开关（默认 true） */
+  /** 低额度预警总开关（默认 true）：关闭时托盘不变红也不发通知 */
   low_warn_enabled: boolean;
+  /** 预警时发系统通知（默认 true，需总开关开启才生效） */
+  low_warn_notify_enabled: boolean;
   /** 告警阈值百分比（默认 20） */
   warn_threshold_pct: number;
   /** 开机自启（默认 false，保存时同步注册表） */

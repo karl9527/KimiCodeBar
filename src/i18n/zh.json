@@ -69,7 +69,8 @@
     "general": {
       "title": "通用设置",
       "refreshInterval": "刷新间隔（分钟，1–60）",
-      "lowWarn": "低额度告警",
+      "lowWarn": "低额度预警（托盘图标变红）",
+      "lowWarnNotify": "预警时发系统通知",
       "warnThreshold": "告警阈值（剩余 %，1–99）",
       "autostart": "开机自启",
       "hotkey": "全局热键",

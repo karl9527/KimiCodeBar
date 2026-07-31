@@ -201,6 +201,7 @@ const mockDb = {
     login_method: null,
     refresh_interval_min: 5,
     low_warn_enabled: true,
+    low_warn_notify_enabled: true,
     warn_threshold_pct: 20,
     autostart: false,
     hotkey: null,

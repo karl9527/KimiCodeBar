@@ -31,8 +31,10 @@ pub struct AppSettings {
     pub login_method: Option<String>,
     /// 自动刷新间隔（分钟，1–60，默认 5）
     pub refresh_interval_min: u32,
-    /// 低额度告警开关
+    /// 低额度预警总开关
     pub low_warn_enabled: bool,
+    /// 预警时发系统通知（需总开关开启）
+    pub low_warn_notify_enabled: bool,
     /// 告警阈值（剩余百分比，1–99）
     pub warn_threshold_pct: f64,
     /// 开机自启（保存时同步注册表）
@@ -69,6 +71,7 @@ impl From<storage::Settings> for AppSettings {
             login_method: s.login_method,
             refresh_interval_min: s.refresh_interval_min,
             low_warn_enabled: s.low_warn_enabled,
+            low_warn_notify_enabled: s.low_warn_notify_enabled,
             warn_threshold_pct: s.warn_threshold_pct,
             autostart: s.autostart,
             hotkey: s.hotkey,
@@ -88,6 +91,7 @@ impl From<AppSettings> for storage::Settings {
             login_method: s.login_method,
             refresh_interval_min: s.refresh_interval_min,
             low_warn_enabled: s.low_warn_enabled,
+            low_warn_notify_enabled: s.low_warn_notify_enabled,
             warn_threshold_pct: s.warn_threshold_pct,
             autostart: s.autostart,
             hotkey: s.hotkey,
@@ -1084,14 +1088,16 @@ fn assemble_panel_state(inner: &Inner) -> PanelState {
         Some((quota, fetched_at)) => (Some(quota.clone()), Some(*fetched_at)),
         None => (None, None),
     };
-    // 低额判定：任一时间窗剩余低于阈值，或月度已用超过 100 - 阈值
-    let low_warning = quota
-        .as_ref()
-        .is_some_and(|q| needs_low_warning(q, settings.warn_threshold_pct))
-        || inner
-            .monthly
+    // 低额判定（总开关关闭时恒为 false：托盘不变红、后续也不发通知）：
+    // 任一时间窗剩余低于阈值，或月度已用超过 100 - 阈值
+    let low_warning = settings.low_warn_enabled
+        && (quota
             .as_ref()
-            .is_some_and(|m| m.total_pct >= 100.0 - settings.warn_threshold_pct);
+            .is_some_and(|q| needs_low_warning(q, settings.warn_threshold_pct))
+            || inner
+                .monthly
+                .as_ref()
+                .is_some_and(|m| m.total_pct >= 100.0 - settings.warn_threshold_pct));
     PanelState {
         credential: has_any_credential(),
         loading: inner.loading,

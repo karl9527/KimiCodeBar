@@ -28,9 +28,12 @@ pub struct Settings {
     /// 后台轮询间隔（分钟），默认 5，范围 1–60
     #[serde(default = "default_refresh_interval_min")]
     pub refresh_interval_min: u32,
-    /// 低额度时是否发系统通知，默认开
+    /// 低额度预警总开关（托盘图标变红；关闭时也不发通知），默认开
     #[serde(default = "default_low_warn_enabled")]
     pub low_warn_enabled: bool,
+    /// 预警时是否发系统通知（需总开关开着才生效），默认开
+    #[serde(default = "default_low_warn_enabled")]
+    pub low_warn_notify_enabled: bool,
     /// 低额度告警阈值（剩余百分比，严格小于触发），默认 20.0，范围 1–99
     #[serde(default = "default_warn_threshold_pct")]
     pub warn_threshold_pct: f64,
@@ -83,6 +86,7 @@ impl Default for Settings {
             login_method: None,
             refresh_interval_min: DEFAULT_REFRESH_INTERVAL_MIN,
             low_warn_enabled: true,
+            low_warn_notify_enabled: true,
             warn_threshold_pct: DEFAULT_WARN_THRESHOLD_PCT,
             autostart: false,
             hotkey: None,
@@ -233,6 +237,7 @@ mod tests {
             login_method: Some("oauth".to_string()),
             refresh_interval_min: 15,
             low_warn_enabled: false,
+            low_warn_notify_enabled: false,
             warn_threshold_pct: 33.5,
             autostart: true,
             hotkey: Some("Ctrl+Shift+K".to_string()),

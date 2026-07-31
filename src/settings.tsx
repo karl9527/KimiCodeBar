@@ -31,6 +31,7 @@ const BG_PRESETS = ["night", "aurora", "violet", "ember"];
 interface GeneralForm {
   refreshMin: string;
   lowWarn: boolean;
+  lowWarnNotify: boolean;
   threshold: string;
   autostart: boolean;
   /** 全局热键文本（由 HotkeyInput 录制写入，保存时 trim，空串→null 禁用） */
@@ -58,6 +59,7 @@ function SettingsApp() {
   const [form, setForm] = useState<GeneralForm>({
     refreshMin: "5",
     lowWarn: true,
+    lowWarnNotify: true,
     threshold: "20",
     autostart: false,
     hotkey: "",
@@ -143,6 +145,7 @@ function SettingsApp() {
         setForm({
           refreshMin: String(s.refresh_interval_min),
           lowWarn: s.low_warn_enabled,
+          lowWarnNotify: s.low_warn_notify_enabled,
           threshold: String(s.warn_threshold_pct),
           autostart: s.autostart,
           hotkey: s.hotkey ?? "",
@@ -215,6 +218,7 @@ function SettingsApp() {
       login_method: method,
       refresh_interval_min: refreshMin,
       low_warn_enabled: form.lowWarn,
+      low_warn_notify_enabled: form.lowWarnNotify,
       warn_threshold_pct: threshold,
       autostart: form.autostart,
       // 热键 trim 后提交，空串→null 禁用；后端保存时重新注册，冲突会抛中文错误
@@ -424,6 +428,15 @@ function SettingsApp() {
                 type="checkbox"
                 checked={form.lowWarn}
                 onChange={(e) => setForm((f) => ({ ...f, lowWarn: e.target.checked }))}
+              />
+            </div>
+            <div className="form-row">
+              <label htmlFor="low-warn-notify">{t("settings.general.lowWarnNotify")}</label>
+              <input
+                id="low-warn-notify"
+                type="checkbox"
+                checked={form.lowWarnNotify}
+                onChange={(e) => setForm((f) => ({ ...f, lowWarnNotify: e.target.checked }))}
               />
             </div>
             <div className="form-row">
